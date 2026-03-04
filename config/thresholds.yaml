@@ -1,0 +1,63 @@
+# Stock Screener Thresholds Configuration
+# All numeric cutoffs are defined here — never hardcoded in source files.
+
+growth:
+  revenue_qoq_min_pct: 5.0        # Minimum QoQ revenue growth %
+  revenue_yoy_min_pct: 10.0       # Minimum YoY revenue growth %
+  pat_qoq_min_pct: 5.0            # Minimum QoQ PAT growth %
+  pat_yoy_min_pct: 10.0           # Minimum YoY PAT growth %
+  eps_yoy_min_pct: 10.0           # Minimum YoY EPS growth %
+
+profitability:
+  ebitda_margin_min_pct: 10.0     # Minimum EBITDA margin %
+  roe_min_pct: 15.0               # Minimum Return on Equity %
+  roce_min_pct: 12.0              # Minimum Return on Capital Employed %
+  ocf_pat_ratio_min: 0.75         # Minimum OCF/PAT ratio (cash quality check)
+
+debt:
+  de_ratio_max: 1.0               # Maximum Debt/Equity ratio
+  de_ratio_red: 2.0               # Red flag Debt/Equity ratio
+  interest_coverage_min: 3.0      # Minimum Interest Coverage ratio
+  interest_coverage_red: 1.5      # Red flag Interest Coverage ratio
+  net_debt_ebitda_max: 3.0        # Maximum Net Debt/EBITDA
+
+valuation:
+  pe_max: 40.0                    # Maximum P/E ratio (above = expensive)
+  pe_red: 60.0                    # Red flag P/E ratio
+  pb_max: 5.0                     # Maximum P/B ratio
+  ev_ebitda_max: 20.0             # Maximum EV/EBITDA ratio
+  peg_max: 1.5                    # Maximum PEG ratio
+
+shareholding:
+  promoter_min_pct: 35.0          # Minimum promoter holding %
+  promoter_pledge_max_pct: 10.0   # Maximum promoter pledge %
+  promoter_pledge_red_pct: 25.0   # Red flag promoter pledge %
+  promoter_pledge_increase_alert: 5.0  # Alert if pledge increases by this % QoQ
+  promoter_holding_decrease_alert: 2.0 # Alert if promoter selling by this % QoQ
+  fii_increase_min_pct: 1.0       # Bullish signal: FII bought this much QoQ
+
+working_capital:
+  debtor_days_max: 90             # Maximum debtor days
+  inventory_days_max: 120         # Maximum inventory days
+  debtor_days_increase_alert: 30  # Alert if debtor days increased by this
+
+contingent_liabilities:
+  net_worth_ratio_max: 0.5        # Contingent liabilities > 50% net worth = RED
+
+cache:
+  ttl_hours: 24                   # Cache time-to-live in hours
+  dir: data/cache                 # Cache directory (relative to project root)
+
+scoring:
+  weights:
+    revenue_growth: 10
+    pat_growth: 10
+    ebitda_margin: 8
+    ocf_quality: 12
+    roe: 10
+    roce: 8
+    debt_health: 12
+    promoter_activity: 10
+    valuation: 10
+    working_capital: 5
+    red_flag_penalty: -5          # Per red flag
