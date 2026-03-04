@@ -234,6 +234,17 @@ Cash Conversion Cycle = Debtor Days + Inventory Days − Creditor Days
 - Selling through bulk/block deals → may be distress or diversification
 - Selling after stock split/bonus → may be suspect
 
+**CLI Scoring — Promoter Holding Change (max ±10 pts):**
+
+| QoQ Change | Score Impact |
+|------------|-------------|
+| > +1% | +6 (strong buying signal) |
+| 0 to +1% | +2 (mild accumulation) |
+| 0 to −threshold | −3 (mild selling) |
+| < −threshold | −8 (meaningful selling) |
+
+6-quarter trend reinforces the QoQ signal: sustained buying over 6Q adds +2; sustained selling subtracts −2.
+
 ### 4.2 Promoter Pledge
 
 **Pledge mechanics**: Promoter borrows money by pledging shares. If stock price falls below margin, lender can sell shares → cascade fall.
@@ -262,6 +273,18 @@ FII (Foreign Institutional Investors) / FPI (Foreign Portfolio Investors) are so
 
 **Key nuance**: FII selling may be due to global EM outflows (macro, not company-specific). Check broader FII activity before concluding.
 
+**CLI Scoring — FII Activity (max ±6 pts):**
+
+| FII QoQ Change | Score Impact |
+|----------------|-------------|
+| ≥ 2× threshold (e.g. ≥ +2%) | +6 |
+| ≥ threshold (e.g. ≥ +1%) | +3 |
+| 0 to −threshold | 0 |
+| ≤ −threshold | −3 |
+| ≤ −2× threshold | −6 |
+
+Threshold defaults to `fii_increase_min_pct: 1.0` in `config/thresholds.yaml`.
+
 ### 4.4 DII Activity
 
 DII (Domestic Institutional Investors) = Mutual Funds + Insurance companies + Pension funds.
@@ -269,6 +292,14 @@ DII (Domestic Institutional Investors) = Mutual Funds + Insurance companies + Pe
 - DII often provides support during FII selling (counter-cyclical)
 - Systematic buying from DII (MF SIP flows) provides floor
 - DII reducing despite FII buying = unusual, investigate
+
+**CLI Scoring — DII Activity (secondary signal, max ±3 pts):**
+
+| DII QoQ Change | Score Impact |
+|----------------|-------------|
+| ≥ threshold | +3 |
+| 0 to −threshold | 0 |
+| ≤ −threshold | −3 |
 
 ### 4.5 Shareholding Concentration Risk
 
@@ -299,6 +330,32 @@ Forward P/E = Price / Next 12 months estimated EPS
 | 20–35 | Growth premium, justified if growth > 15% |
 | 35–60 | High expectations priced in |
 | > 60 | Speculative — needs very high growth |
+
+**Historical P/E vs Mean (most powerful valuation signal):**
+
+Compare the current P/E to the stock's own 5-year (or 1-year) mean P/E. This accounts for sector-specific re-rating and is far more useful than an absolute P/E threshold.
+
+```
+P/E Ratio = Current P/E / Historical Mean P/E (5Y preferred, 1Y fallback)
+```
+
+| Ratio | Interpretation |
+|-------|----------------|
+| < 0.70 | Trading at steep discount to own history — strong value opportunity |
+| 0.70–0.90 | Moderately undervalued |
+| 0.90–1.15 | Fair value — near historical average |
+| 1.15–1.40 | Moderately overvalued |
+| > 1.40 | Significantly above historical average — priced for perfection |
+
+**CLI Scoring — Historical P/E vs Mean (max ±8 pts):**
+
+| P/E Ratio (Current / Mean) | Score Impact |
+|----------------------------|-------------|
+| < 0.70 | +8 (deep discount) |
+| 0.70–0.90 | +4 (mild discount) |
+| 0.90–1.15 | 0 (fair value) |
+| 1.15–1.40 | −4 (mild premium) |
+| > 1.40 | −8 (significant premium) |
 
 ### 5.2 Price to Book (P/B)
 
@@ -507,33 +564,75 @@ Dividend Yield = Annual DPS / Market Price × 100
 
 ## 8. Quantitative Scorecard Template
 
-Use this for a structured, repeatable quarterly review. Score each parameter out of the given max, total out of 100.
+The CLI tool computes a 0–100 score automatically. Both sub-scores start at a neutral **50** and are adjusted up or down based on signals. The final score is:
 
-| # | Parameter | Criteria | Weight | Score | Notes |
-|---|-----------|----------|--------|-------|-------|
-| 1 | Revenue Growth (YoY) | >20%=10, 10-20%=7, 0-10%=3, <0=0 | 10% | /10 | |
-| 2 | PAT Growth (YoY) | >20%=10, 10-20%=7, 0-10%=3, <0=0 | 10% | /10 | |
-| 3 | EBITDA Margin | >25%=8, 15-25%=6, 10-15%=4, <10%=2 | 8% | /8 | |
-| 4 | OCF Quality (OCF/PAT) | >1=12, 0.75-1=9, 0.5-0.75=5, <0.5=0 | 12% | /12 | |
-| 5 | ROE | >25%=10, 15-25%=7, 10-15%=4, <10%=0 | 10% | /10 | |
-| 6 | ROCE | >20%=8, 12-20%=5, 8-12%=3, <8%=0 | 8% | /8 | |
-| 7 | Debt Health (D/E + ICR) | D/E<0.5 & ICR>5=12, moderate=8, high=4, red=0 | 12% | /12 | |
-| 8 | Promoter Activity | Buying+NoPledge=10, Stable=6, Selling=3, HighPledge=0 | 10% | /10 | |
-| 9 | Valuation (P/E vs Growth) | PEG<1=10, PEG 1-1.5=7, PEG 1.5-2=4, PEG>2=2 | 10% | /10 | |
-| 10 | FCF Generation | Positive+Growing=5, Positive+Stable=3, Negative=-5 | 5% | /5 | |
-| 11 | Audit Quality | Clean opinion=5, Emphasis=3, Qualified=-5, Adverse=-20 | 5% | /5 | |
-| 12 | Red Flags | 0 flags=10, 1=7, 2=4, 3=2, 4+=0 (or negative) | — | bonus/penalty | |
-| — | **TOTAL** | | **100%** | **/100** | |
+```
+Final Score = BasicScore × 40% + AdvancedScore × 60%
+```
 
-**Score Interpretation:**
+### 8.1 Basic Score Components (40% weight)
+
+Each component adjusts the starting score of 50:
+
+| # | Parameter | Criteria | Max Points |
+|---|-----------|----------|-----------|
+| 1 | Revenue YoY Growth | >20%: +10 · 10–20%: +5 · 0–10%: 0 · <0%: −10 | ±10 |
+| 2 | PAT YoY Growth | >20%: +10 · 10–20%: +5 · 0–10%: 0 · <0%: −10 | ±10 |
+| 3 | EBITDA Margin + Trend | High margin + improving trend: +10 · low / deteriorating: −10 | ±10 |
+| 4 | OCF Quality (OCF/PAT) | >1.0: +15 · 0.75–1: +8 · 0.5–0.75: 0 · <0.5: −10 | ±15 |
+| 5 | EPS YoY Growth | >20%: +5 · 10–20%: +3 · <0%: −5 | ±5 |
+| 6 | Flags (RED/YELLOW/GREEN) | GREEN: +3 each · YELLOW: −2 each · RED: −5 each | variable |
+
+### 8.2 Advanced Score Components (60% weight)
+
+| # | Parameter | Criteria | Max Points |
+|---|-----------|----------|-----------|
+| 1 | ROE | >25%: +10 · 15–25%: +5 · 10–15%: 0 · <10%: −10 | ±10 |
+| 2 | ROCE | >20%: +8 · 12–20%: +4 · 8–12%: 0 · <8%: −8 | ±8 |
+| 3 | Debt/Equity Ratio | <0.3: +10 · 0.3–1: +5 · 1–2: −5 · >2: −15 | ±15 |
+| 4 | Interest Coverage | >5×: +5 · 3–5×: +2 · 1.5–3×: −3 · <1.5×: −8 | ±8 |
+| 5 | Net Debt / EBITDA | <1×: +5 · 1–2×: +2 · 2–3×: −2 · >3×: −5 | ±5 |
+| 6 | Promoter Pledge | 0%: +10 · <10%: +5 · 10–25%: −5 · >25%: −10 | ±10 |
+| 7 | **Promoter Holding Change** | QoQ >+1%: +6 · mild buy: +2 · mild sell: −3 · heavy sell: −8 | ±10 |
+| 8 | **FII Activity** | QoQ ≥+2%: +6 · ≥+1%: +3 · ≤−1%: −3 · ≤−2%: −6 | ±6 |
+| 9 | **DII Activity** | QoQ ≥ threshold: +3 · ≤ −threshold: −3 | ±3 |
+| 10 | **Historical P/E vs Mean** | <0.70×: +8 · 0.70–0.90×: +4 · 0.90–1.15×: 0 · 1.15–1.40×: −4 · >1.40×: −8 | ±8 |
+| 11 | FCF Trend | Positive + growing: +5 · stable: +2 · declining: −5 | ±5 |
+| 12 | Working Capital (Debtor+Inv days) | Improving: +3 · worsening: −3 | ±3 |
+| 13 | Revenue Quality Score | Internal signal (0–10 scale) | ±5 |
+| 14 | Red Flag Penalty | −5 per RED flag | variable |
+
+> **Bold rows** = factors added in the latest scoring update (FII/DII activity, promoter holding change QoQ, historical P/E vs mean).
+
+### 8.3 Score Interpretation (CLI output)
 
 | Score | Rating | Action |
 |-------|--------|--------|
-| 80–100 | STRONG BUY | High conviction, size up position |
-| 60–79 | BUY | Good entry, standard position size |
-| 40–59 | WATCH | Monitor for improvement, don't buy yet |
-| 20–39 | AVOID | Multiple concerns, stay away |
-| < 20 | SELL | Consider exiting, serious red flags |
+| 80–100 | **STRONG BUY** | High conviction, size up position |
+| 60–79 | **BUY** | Good entry, standard position size |
+| 40–59 | **WATCH** | Monitor for improvement, don't buy yet |
+| 20–39 | **AVOID** | Multiple concerns, stay away |
+| < 20 | **SELL** | Consider exiting, serious red flags |
+
+### 8.4 Manual Scorecard (for offline use)
+
+| # | Parameter | Your Assessment | Score | Notes |
+|---|-----------|----------------|-------|-------|
+| 1 | Revenue Growth (YoY) | | /10 | |
+| 2 | PAT Growth (YoY) | | /10 | |
+| 3 | EBITDA Margin + Trend | | /10 | |
+| 4 | OCF Quality (OCF/PAT) | | /15 | |
+| 5 | ROE | | /10 | |
+| 6 | ROCE | | /8 | |
+| 7 | Debt Health (D/E + ICR) | | /15 | |
+| 8 | Promoter Pledge | | /10 | |
+| 9 | Promoter Holding Change (QoQ) | | /10 | |
+| 10 | FII/DII Activity | | /9 | |
+| 11 | Historical P/E vs Mean | | /8 | |
+| 12 | FCF Generation | | /5 | |
+| 13 | Audit Quality | Clean=0 · Emphasis=−3 · Qualified=−10 · Adverse=−25 | penalty | |
+| 14 | Red Flags (count) | | penalty | |
+| — | **TOTAL** | | **/120** | normalise to 100 |
 
 ---
 
