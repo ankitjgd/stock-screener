@@ -675,6 +675,10 @@ class AdvancedScreener:
         cfg_prof = self.cfg["profitability"]
         score = 50
         bd: dict = {"profitability": 0, "debt": 0, "shareholding": 0, "valuation": 0, "penalties": 0}
+        _pd: list = []   # profitability detail: [label, pts]
+        _dd: list = []   # debt detail
+        _sd: list = []   # shareholding detail
+        _vd: list = []   # valuation detail
 
         # Per-factor scale: YAML weight / built-in default. 0.0 when factor is disabled.
         _DEFAULTS = {
@@ -701,6 +705,7 @@ class AdvancedScreener:
             pts = round(raw * _sf("roe"))
             score += pts
             bd["profitability"] += pts
+            _pd.append([f"ROE {result.roe_pct:.1f}%", pts])
 
         # ROCE (default max ±8)
         if result.roce_pct is not None:
@@ -711,6 +716,7 @@ class AdvancedScreener:
             pts = round(raw * _sf("roce"))
             score += pts
             bd["profitability"] += pts
+            _pd.append([f"ROCE {result.roce_pct:.1f}%", pts])
 
         # D/E ratio (default max ±12)
         if result.de_ratio is not None:
@@ -720,6 +726,7 @@ class AdvancedScreener:
             pts = round(raw * _sf("de_ratio"))
             score += pts
             bd["debt"] += pts
+            _dd.append([f"D/E {result.de_ratio:.2f}x", pts])
 
         # Interest coverage (default max ±6)
         if result.interest_coverage is not None:
@@ -728,6 +735,7 @@ class AdvancedScreener:
             pts = round(raw * _sf("interest_coverage"))
             score += pts
             bd["debt"] += pts
+            _dd.append([f"Int. Cov. {result.interest_coverage:.1f}x", pts])
 
         # FCF (default max ±5)
         if result.fcf_latest is not None:
@@ -735,6 +743,8 @@ class AdvancedScreener:
             pts = round(raw * _sf("fcf"))
             score += pts
             bd["debt"] += pts
+            _fcf_cr = result.fcf_latest / 1e7
+            _dd.append([f"FCF ₹{_fcf_cr:,.0f}Cr", pts])
 
         # Promoter pledge (default max ±10)
         pp_sf = _sf("promoter_pledge")
@@ -745,10 +755,12 @@ class AdvancedScreener:
             pts = round(raw * pp_sf)
             score += pts
             bd["shareholding"] += pts
+            _sd.append([f"Pledge {result.promoter_pledge_pct:.1f}%", pts])
         if pp_sf and result.pledge_delta and result.pledge_delta > cfg_s["promoter_pledge_increase_alert"]:
             pts = round(-10 * pp_sf)
             score += pts
             bd["shareholding"] += pts
+            _sd.append([f"Pledge spike +{result.pledge_delta:.1f}pp", pts])
 
         # Promoter holding QoQ (default max ±8, 6Q trend ±2)
         ph_sf = _sf("promoter_holding")
@@ -759,6 +771,7 @@ class AdvancedScreener:
             pts = round(raw * ph_sf)
             score += pts
             bd["shareholding"] += pts
+            _sd.append([f"Promo QoQ {result.promoter_holding_delta:+.2f}pp", pts])
         # 6Q trend reinforces signal
         if ph_sf and result.promoter_holding_6q_delta is not None:
             raw = (2 if result.promoter_holding_6q_delta > 2.0 else
@@ -766,6 +779,8 @@ class AdvancedScreener:
             pts = round(raw * ph_sf)
             score += pts
             bd["shareholding"] += pts
+            if pts != 0:
+                _sd.append([f"Promo 6Q {result.promoter_holding_6q_delta:+.2f}pp", pts])
 
         # FII activity (default max ±6)
         fii_sf = _sf("fii_activity")
@@ -777,6 +792,8 @@ class AdvancedScreener:
             pts = round(raw * fii_sf)
             score += pts
             bd["shareholding"] += pts
+            if pts != 0:
+                _sd.append([f"FII {result.fii_holding_delta:+.2f}pp", pts])
         # DII (default max ±3)
         dii_sf = _sf("dii_activity")
         if dii_sf and result.dii_holding_delta is not None:
@@ -785,6 +802,8 @@ class AdvancedScreener:
             pts = round(raw * dii_sf)
             score += pts
             bd["shareholding"] += pts
+            if pts != 0:
+                _sd.append([f"DII {result.dii_holding_delta:+.2f}pp", pts])
 
         # Both FII + DII selling simultaneously → -10 (scaled by fii weight)
         fii_down = result.fii_holding_delta is not None and result.fii_holding_delta <= -cfg_s["fii_increase_min_pct"]
@@ -793,6 +812,7 @@ class AdvancedScreener:
             pts = round(-10 * fii_sf)
             score += pts
             bd["shareholding"] += pts
+            _sd.append(["FII+DII both selling", pts])
 
         # High public holding (> 30%) → -5
         pub_max = cfg_s.get("public_holding_max_pct", 30.0)
@@ -800,6 +820,7 @@ class AdvancedScreener:
             pts = round(-5 * fii_sf)
             score += pts
             bd["shareholding"] += pts
+            _sd.append([f"Public {result.public_holding_pct:.1f}% > {pub_max:.0f}%", pts])
 
         # PEG ratio (default max ±8)
         peg_sf = _sf("peg_ratio")
@@ -814,6 +835,7 @@ class AdvancedScreener:
             pts = round(raw * peg_sf)
             score += pts
             bd["valuation"] += pts
+            _vd.append([f"PEG {result.peg_ratio:.2f}x", pts])
 
         # Historical P/E vs mean (default max ±8)
         hpe_sf = _sf("historical_pe")
@@ -827,11 +849,13 @@ class AdvancedScreener:
             pts = round(raw * hpe_sf)
             score += pts
             bd["valuation"] += pts
+            _vd.append([f"P/E {result.pe_ratio:.1f}x vs mean {pe_mean_ref:.1f}x", pts])
 
         # Real estate specific scoring (replaces working capital for RE companies)
         if result.is_real_estate:
             cfg_re = self.cfg.get("real_estate", {})
             re_pts = 0
+            _red: list = []
             # Pre-sales coverage (max ±10)
             if result.re_presales_coverage is not None:
                 pc = result.re_presales_coverage
@@ -839,6 +863,7 @@ class AdvancedScreener:
                        5 if pc >= 0.50 else \
                        0 if pc >= cfg_re.get("presales_coverage_red", 0.25) else -8
                 re_pts += pts
+                _red.append([f"Pre-sales cov. {pc:.2f}x", pts])
             # Net debt post-advances (max ±10)
             if result.re_net_debt_post_advances is not None:
                 nd = result.re_net_debt_post_advances
@@ -846,6 +871,7 @@ class AdvancedScreener:
                        5 if nd <= 1.0 else \
                       -5 if nd <= cfg_re.get("net_debt_post_advances_red", 1.5) else -10
                 re_pts += pts
+                _red.append([f"Net debt/adv {nd:.2f}x", pts])
             # Inventory years (max ±8)
             if result.re_inventory_years is not None:
                 iy = result.re_inventory_years
@@ -853,8 +879,10 @@ class AdvancedScreener:
                       4 if iy <= 4.0 else \
                      -4 if iy <= cfg_re.get("inventory_years_red", 6.0) else -8
                 re_pts += pts
+                _red.append([f"Inventory {iy:.1f}y", pts])
             score += re_pts
             bd["real_estate"] = re_pts
+            bd["real_estate_detail"] = _red
 
         # Red flag penalty
         rfp_sf = _sf("red_flag_penalty")
@@ -863,6 +891,11 @@ class AdvancedScreener:
         score -= penalty
         bd["penalties"] = -penalty
         bd["penalty_flags"] = [f.message for f in red_flags]
+
+        bd["profitability_detail"] = _pd
+        bd["debt_detail"]          = _dd
+        bd["shareholding_detail"]  = _sd
+        bd["valuation_detail"]     = _vd
 
         result.score_breakdown = bd
         return max(0, min(100, score))

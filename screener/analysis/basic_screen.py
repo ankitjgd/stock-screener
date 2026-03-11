@@ -645,6 +645,10 @@ class BasicScreener:
         financial = _is_financial(sector)
         score = 50
         bd: dict = {"growth": 0, "profitability": 0, "cash_quality": 0, "asset_quality": 0, "penalties": 0}
+        _gd: list = []   # growth detail: [label, pts]
+        _pd: list = []   # profitability detail
+        _cd: list = []   # cash quality detail
+        _ad: list = []   # asset quality detail
 
         # Per-factor scale: YAML weight / built-in default. 0.0 when factor is disabled.
         _DEFAULTS = {
@@ -688,12 +692,16 @@ class BasicScreener:
         if rev_pts is not None:
             score += rev_pts
             bd["growth"] += rev_pts
+            _rv = result.revenue_yoy_pct or result.revenue_yoy_3y_pct
+            _gd.append([f"Rev {_rv:.1f}%" if _rv is not None else "Rev", rev_pts])
 
         # PAT growth (default max ±15)
         pat_pts = _growth_pts(result.pat_yoy_pct, result.pat_yoy_3y_pct, cfg_g["pat_yoy_min_pct"], "pat_growth")
         if pat_pts is not None:
             score += pat_pts
             bd["growth"] += pat_pts
+            _pv = result.pat_yoy_pct or result.pat_yoy_3y_pct
+            _gd.append([f"PAT {_pv:.1f}%" if _pv is not None else "PAT", pat_pts])
 
         # Chronic loss penalty: PAT QoQ suppressed because majority of recent quarters were losses
         # This fires only when pat_pts is not already penalising — a safety net for companies
@@ -702,6 +710,7 @@ class BasicScreener:
             chronic_pen = round(10 * _sf("pat_growth"))
             score -= chronic_pen
             bd["growth"] -= chronic_pen
+            _gd.append(["Chronic loss pen.", -chronic_pen])
 
         # EBITDA margin (default max ±10) — not applicable for financial sector
         em_sf = _sf("ebitda_margin")
@@ -711,14 +720,17 @@ class BasicScreener:
             pts = round(raw * em_sf)
             score += pts
             bd["profitability"] += pts
+            _pd.append([f"EBITDA {result.ebitda_margin_latest_pct:.1f}%", pts])
         if em_sf and not financial and result.ebitda_margin_trend == "improving":
             pts = round(5 * em_sf)
             score += pts
             bd["profitability"] += pts
+            _pd.append(["EBITDA trend ↑", pts])
         elif em_sf and not financial and result.ebitda_margin_trend == "deteriorating":
             pts = round(-10 * em_sf)
             score += pts
             bd["profitability"] += pts
+            _pd.append(["EBITDA trend ↓", pts])
 
         # NPA scoring — financial sector only (replaces EBITDA margin)
         # Scored into bd["asset_quality"] to keep it separate from general profitability.
@@ -740,6 +752,7 @@ class BasicScreener:
                 pts = round(raw * npa_sf)
                 score += pts
                 bd["asset_quality"] += pts
+                _ad.append([f"Gross NPA {g:.1f}%", pts])
 
             if result.net_npa_pct is not None:
                 n = result.net_npa_pct
@@ -750,6 +763,7 @@ class BasicScreener:
                 pts = round(raw * npa_sf)
                 score += pts
                 bd["asset_quality"] += pts
+                _ad.append([f"Net NPA {n:.1f}%", pts])
 
             # 1Y trend bonus/penalty — improving NPA trend is a strong forward signal
             if result.gross_npa_1y_chg is not None:
@@ -760,6 +774,8 @@ class BasicScreener:
                 pts = round(raw * npa_sf)
                 score += pts
                 bd["asset_quality"] += pts
+                if pts != 0:
+                    _ad.append([f"NPA 1Y trend {result.gross_npa_1y_chg:+.1f}pp", pts])
 
         # OCF quality (default max ±15) — skipped for financial sector
         ocf_sf = _sf("ocf_quality")
@@ -771,6 +787,7 @@ class BasicScreener:
                 pts = round(raw * ocf_sf)
                 score += pts
                 bd["cash_quality"] += pts
+                _cd.append([f"OCF/EBITDA {r:.2f}", pts])
             elif result.ocf_pat_ratio is not None:
                 raw = (10 if result.ocf_pat_ratio >= 1.0 else
                         5 if result.ocf_pat_ratio >= cfg_p["ocf_pat_ratio_min"] else
@@ -778,12 +795,14 @@ class BasicScreener:
                 pts = round(raw * ocf_sf)
                 score += pts
                 bd["cash_quality"] += pts
+                _cd.append([f"OCF/PAT {result.ocf_pat_ratio:.2f}", pts])
                 # Extra penalty for chronic negative OCF (not just a one-off dip)
                 ocf_trend_check = result.si_ocf_trend or result.ocf_trend
                 if result.ocf_pat_ratio < 0 and ocf_trend_check == "stable":
                     pen = round(5 * ocf_sf)
                     score -= pen
                     bd["cash_quality"] -= pen
+                    _cd.append(["Chronic neg. OCF", -pen])
 
         # Red flag penalties — only for categories NOT already captured in numeric scoring above.
         # Growth (revenue/PAT) and CashQuality (OCF) and Margin are already scored numerically,
@@ -795,6 +814,11 @@ class BasicScreener:
         score -= penalty
         bd["penalties"] = -penalty
         bd["penalty_flags"] = [f.message for f in red_flags]
+
+        bd["growth_detail"]       = _gd
+        bd["profitability_detail"] = _pd
+        bd["cash_quality_detail"] = _cd
+        bd["asset_quality_detail"] = _ad
 
         result.score_breakdown = bd
         return max(0, min(100, score))
