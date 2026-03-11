@@ -361,6 +361,21 @@ def _si_pct_change(series: pd.Series, periods: int) -> Optional[float]:
     return round(((curr - prev) / abs(prev)) * 100, 2)
 
 
+def _patch_stub_annual(si_annual: pd.DataFrame, si_quarterly: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Drop stub annual columns (e.g. 'Mar 2026 9m') that cover less than a full year.
+
+    A stub column has a header matching '<Month> <Year> <N>m' (e.g. 'Mar 2026 9m').
+    Including partial-year data in YoY comparisons produces misleading growth numbers
+    (e.g. 9-month revenue vs previous 12-month revenue). Dropping it means we fall back
+    to the last complete fiscal year, which gives accurate like-for-like comparisons.
+    TTM columns are kept — they represent a full rolling 12-month period.
+    """
+    import re
+    stub_pat = re.compile(r'\b\d{1,2}m\b', re.IGNORECASE)
+    keep = [c for c in si_annual.columns if not stub_pat.search(str(c))]
+    return si_annual[keep] if len(keep) < len(si_annual.columns) else si_annual
+
+
 class BasicScreener:
     """Analyses quarterly income/cashflow for basic quality signals."""
 
