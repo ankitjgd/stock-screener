@@ -105,10 +105,7 @@ python -m screener screen RELIANCE.NS
           │
           ▼
     YFinanceFetcher.fetch_all(symbol)
-    ├── price_info         (current price, market cap, sector)
-    ├── quarterly_income   (Revenue, EBITDA, Net Income, EPS)
-    ├── quarterly_balance  (Total Debt, Total Equity, Cash)
-    ├── quarterly_cashflow (Operating CF, CapEx, Free CF)
+    ├── price_info         (current price, market cap, sector — always fresh)
     ├── historical_pe      (TTM P/E — 1Y / 5Y / 10Y windows)
     └── price_trend        (6M & 1Y change, high/low, sparkline, MAs)
           │
@@ -230,10 +227,7 @@ Cache files are created automatically. If a fetch fails, the cache file is not w
 
 | Key | Source | Contains |
 |-----|--------|---------|
-| `quarterly_income` | yfinance | Revenue, EBITDA, Net Income, EPS (quarterly) |
-| `quarterly_balance` | yfinance | Debt, Equity, Cash (quarterly) |
-| `quarterly_cashflow` | yfinance | OCF, CapEx, FCF (quarterly) |
-| `price_info` | yfinance | Current price, market cap, sector, P/E, P/B |
+| `price_info` | yfinance | Current price, market cap, sector, P/E, P/B — **not cached, always fresh** |
 | `price_trend` | yfinance | 6M/1Y price change, high/low, sparkline, MAs |
 | `historical_pe` | yfinance | TTM P/E — 1Y / 5Y / 10Y statistics |
 | `si_shareholding` | screener.in | Promoter%, Pledge%, FII%, DII%, Public% with deltas |
@@ -309,7 +303,7 @@ The app is designed to never crash on missing data:
 - **screener.in scraping** — relies on HTML structure; may break if screener.in changes their page layout
 - **Historical P/E accuracy** — calculated from TTM EPS constructed from quarterly + annual data; approximate for stocks with irregular reporting
 - **PDF audit scan** — keyword-based and semantic only; does not parse financial tables from PDFs
-- **yfinance data gaps** — some smaller/mid-cap Indian stocks have incomplete quarterly data on Yahoo Finance; screener.in data fills many gaps
+- **yfinance scope** — only used for current price, historical P/E, and price trend; all quarterly financials (revenue, profit, debt, OCF) come exclusively from screener.in
 
 ---
 
