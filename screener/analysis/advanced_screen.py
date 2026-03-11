@@ -681,20 +681,14 @@ class AdvancedScreener:
         _vd: list = []   # valuation detail
 
         # Per-factor scale: YAML weight / built-in default. 0.0 when factor is disabled.
-        _DEFAULTS = {
-            "roe": 10, "roce": 8, "de_ratio": 12, "interest_coverage": 6, "fcf": 5,
-            "peg_ratio": 8, "historical_pe": 8,
-            "promoter_pledge": 10, "promoter_holding": 8,
-            "fii_activity": 6, "dii_activity": 6,
-            "working_capital": 5, "red_flag_penalty": 5,
-        }
         _fcts = self.cfg.get("scoring", {}).get("factors", {})
 
         def _sf(name: str) -> float:
             f = _fcts.get(name, {})
             if not f.get("enabled", True):
                 return 0.0
-            return float(f.get("weight", _DEFAULTS[name])) / _DEFAULTS[name]
+            dw = float(f["default_weight"])
+            return float(f.get("weight", dw)) / dw
 
         # ROE (default max ±10)
         if result.roe_pct is not None:

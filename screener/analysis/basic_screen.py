@@ -651,17 +651,14 @@ class BasicScreener:
         _ad: list = []   # asset quality detail
 
         # Per-factor scale: YAML weight / built-in default. 0.0 when factor is disabled.
-        _DEFAULTS = {
-            "revenue_growth": 15, "pat_growth": 15, "ebitda_margin": 10,
-            "ocf_quality": 15, "npa_quality": 15, "red_flag_penalty": 5,
-        }
         _fcts = self.cfg.get("scoring", {}).get("factors", {})
 
         def _sf(name: str) -> float:
             f = _fcts.get(name, {})
             if not f.get("enabled", True):
                 return 0.0
-            return float(f.get("weight", _DEFAULTS[name])) / _DEFAULTS[name]
+            dw = float(f["default_weight"])
+            return float(f.get("weight", dw)) / dw
 
         def _growth_pts(pct5y, pct3y, threshold, factor_name):
             """Score growth using the worse of 3Y and 5Y averages.

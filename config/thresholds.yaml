@@ -80,59 +80,79 @@ scoring:
   # Increase a weight to make a factor matter more; set enabled: false to skip it entirely.
   # Defaults reflect the original scoring design; the web UI lets users customise per profile.
   factors:
+    # weight       — current max pts (users can override this for custom scoring)
+    # default_weight — calibration base; raw values in code are scaled to this. Do not change.
     # ─── BasicScreener ────────────────────────────────────────────────────────
     revenue_growth:
-      weight: 15      # max +pts; -1.0×weight for chronic decline
+      weight: 15
+      default_weight: 15
       enabled: true
     pat_growth:
       weight: 15
+      default_weight: 15
       enabled: true
     ebitda_margin:
-      weight: 10      # margin level; trend adds ±50 % of weight
+      weight: 10      # margin level; trend adds ±50% of weight
+      default_weight: 10
       enabled: true
     ocf_quality:
       weight: 15      # OCF/PAT (or OCF/EBITDA for lease-heavy)
+      default_weight: 15
       enabled: true
     npa_quality:
       weight: 15      # financial sector only — replaces ebitda_margin + ocf_quality
+      default_weight: 15
       enabled: true
     # ─── AdvancedScreener ─────────────────────────────────────────────────────
     roe:
       weight: 10
+      default_weight: 10
       enabled: true
     roce:
       weight: 8
+      default_weight: 8
       enabled: true
     de_ratio:
       weight: 12
+      default_weight: 12
       enabled: true
     interest_coverage:
       weight: 6
+      default_weight: 6
       enabled: true
     fcf:
       weight: 5
+      default_weight: 5
       enabled: true
     peg_ratio:
       weight: 8
+      default_weight: 8
       enabled: true
     historical_pe:
       weight: 8
+      default_weight: 8
       enabled: true
     promoter_pledge:
       weight: 10
+      default_weight: 10
       enabled: true
     promoter_holding:
-      weight: 8       # QoQ + 6Q trend combined
+      weight: 8
+      default_weight: 8
       enabled: true
     fii_activity:
-      weight: 6       # FII QoQ; combined FII+DII selling adds extra -10
+      weight: 6       # combined FII+DII selling adds extra -10
+      default_weight: 6
       enabled: true
     dii_activity:
       weight: 6
+      default_weight: 6
       enabled: true
     working_capital:
       weight: 5       # debtor-days and CCC trend
+      default_weight: 5
       enabled: true
     red_flag_penalty:
       weight: 5       # points subtracted per RED flag (for flags not already numerically scored)
+      default_weight: 5
       enabled: true
