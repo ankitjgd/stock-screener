@@ -77,7 +77,9 @@ class BasicScreenResult:
     # Growth metrics
     revenue_qoq_pct: Optional[float] = None
     revenue_yoy_pct: Optional[float] = None       # avg YoY over 5Y
+    revenue_yoy_periods: int = 5                  # actual periods used
     revenue_yoy_3y_pct: Optional[float] = None    # avg YoY over 3Y
+    revenue_yoy_3y_periods: int = 3               # actual periods used
     pat_qoq_pct: Optional[float] = None
     pat_yoy_pct: Optional[float] = None
     pat_yoy_3y_pct: Optional[float] = None
@@ -424,8 +426,12 @@ class BasicScreener:
             result.revenue_latest = float(rev.dropna().iloc[-1]) * 1e7  # Cr → INR
             result.revenue_qoq_pct = _avg_qoq_pct(rev, 5)
             ann_rev = _si_row_series(si_annual_df, rev_keys, skip_ttm=True) if ann_ok else None
-            result.revenue_yoy_pct = _avg_qoq_pct(ann_rev, 5) if (ann_rev is not None and not ann_rev.dropna().empty) else _avg_yoy_pct(rev, 5)
-            result.revenue_yoy_3y_pct = _avg_qoq_pct(ann_rev, 3) if (ann_rev is not None and not ann_rev.dropna().empty) else _avg_yoy_pct(rev, 3)
+            if ann_rev is not None and not ann_rev.dropna().empty:
+                result.revenue_yoy_pct, result.revenue_yoy_periods = _avg_qoq_pct_with_fallback(ann_rev, 5)
+                result.revenue_yoy_3y_pct, result.revenue_yoy_3y_periods = _avg_qoq_pct_with_fallback(ann_rev, 3)
+            else:
+                result.revenue_yoy_pct = _avg_yoy_pct(rev, 5)
+                result.revenue_yoy_3y_pct = _avg_yoy_pct(rev, 3)
 
         # ── PAT / Net Profit ───────────────────────────────────────────────
         pat_keys = ["Net Profit", "PAT", "Profit after tax"]
