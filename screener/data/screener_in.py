@@ -26,7 +26,8 @@ _HEADERS = {
     "Sec-Fetch-Dest": "document",
     "Sec-Fetch-Mode": "navigate",
     "Sec-Fetch-Site": "none",
-    "Cache-Control": "max-age=0",
+    "Cache-Control": "no-cache",
+    "Pragma": "no-cache",
 }
 
 _BASE_URLS = [
@@ -83,6 +84,39 @@ class ScreenerInFetcher:
         return True
 
     @staticmethod
+    def _page_has_recent_quarterly_data(soup: BeautifulSoup, max_lag_months: int = 6) -> bool:
+        """Return True if the quarters section has data within the last max_lag_months months.
+
+        Some consolidated pages lag standalone by several quarters (e.g. UCOBANK consolidated
+        only has Mar 2025 while standalone has Dec 2025). Rejecting stale consolidated pages
+        forces fallback to standalone which has the latest data.
+        """
+        import datetime
+        q_section = soup.find("section", {"id": "quarters"})
+        if not q_section:
+            return True  # can't tell — don't reject
+        table = q_section.find("table")
+        if not table:
+            return True
+        first_tr = table.find("tr")
+        if not first_tr:
+            return True
+        _month_map = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+                      "Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12}
+        _qre = re.compile(r"^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})$")
+        latest = None
+        for cell in first_tr.find_all(["td", "th"]):
+            m = _qre.match(cell.get_text(strip=True))
+            if m:
+                d = datetime.date(int(m.group(2)), _month_map[m.group(1)], 1)
+                if latest is None or d > latest:
+                    latest = d
+        if latest is None:
+            return True
+        cutoff = datetime.date.today() - datetime.timedelta(days=max_lag_months * 30)
+        return latest >= cutoff
+
+    @staticmethod
     def _page_has_recent_annual_data(soup: BeautifulSoup, min_recent: int = 2, window: int = 5) -> bool:
         """Return True if the profit-loss table has at least `min_recent` column years within
         the last `window` years. This guards against consolidated pages that have a recent year
@@ -127,7 +161,9 @@ class ScreenerInFetcher:
                 resp = self._session.get(url, timeout=20)
                 if resp.status_code == 200:
                     candidate = BeautifulSoup(resp.text, "lxml")
-                    if self._page_has_data(candidate) and self._page_has_recent_annual_data(candidate):
+                    if (self._page_has_data(candidate)
+                            and self._page_has_recent_annual_data(candidate)
+                            and self._page_has_recent_quarterly_data(candidate)):
                         soup = candidate
                         break
             except Exception:

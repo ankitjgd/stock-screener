@@ -121,6 +121,12 @@ def print_stock_report(
             return f"  [dim red]({val} pts)[/dim red]"
         return "  [dim](0 pts)[/dim]"
 
+    def _subtitle(reasons: list) -> str:
+        """Return a dimmed reason line for table titles, empty string if no reasons."""
+        if not reasons:
+            return ""
+        return "\n  [dim]↳ " + "  ·  ".join(reasons) + "[/dim]"
+
     # ---- Score Breakdown Panel ----
     def _eff(raw: int, w: float) -> int:
         return round(raw * w)
@@ -166,28 +172,23 @@ def print_stock_report(
     ]
     console.print(Panel("\n".join(bd_rows), title="[bold]Score Breakdown[/bold]", border_style="dim"))
 
+    sector = price_info.get("sector") if price_info else None
+    is_fin = _is_financial(sector)
+
     # ---- Section 1: Growth Metrics ----
     growth_pts = bbd.get("growth", 0)
-    growth_table = Table(title=f"Growth Metrics{_pts(growth_pts)}", box=box.SIMPLE_HEAVY, show_header=True)
+    growth_table = Table(title=f"Growth Metrics{_pts(growth_pts)}{_subtitle(bbd.get('growth_reasons', []))}", box=box.SIMPLE_HEAVY, show_header=True)
     growth_table.add_column("Metric", style="dim")
     growth_table.add_column("Avg QoQ % (5Q)", justify="right")
     growth_table.add_column("Avg YoY % (3Y)", justify="right")
     growth_table.add_column("Avg YoY % (5Y)", justify="right")
-    _latest_col = f"Latest ({basic.latest_quarter})" if basic.latest_quarter else "Latest Value"
-    growth_table.add_column(_latest_col, justify="right")
+    growth_table.add_column("TTM", justify="right")
 
     def _growth_style(val: Optional[float], threshold: float = 0) -> str:
         if val is None:
             return "dim"
         return "green" if val >= threshold else "red"
 
-    growth_table.add_row(
-        "Revenue",
-        Text(_fmt(basic.revenue_qoq_pct, "%"), style=_growth_style(basic.revenue_qoq_pct)),
-        Text(_fmt(basic.revenue_yoy_3y_pct, "%"), style=_growth_style(basic.revenue_yoy_3y_pct, 10)),
-        Text(_fmt(basic.revenue_yoy_pct, "%"), style=_growth_style(basic.revenue_yoy_pct, 10)),
-        _fmt_inr(basic.revenue_latest),
-    )
     def _fmt_yoy_fallback(val: Optional[float], periods: int, nominal: int) -> Text:
         """Format a YoY % value, appending (nY) when a fallback period was used."""
         style = _growth_style(val, 10)
@@ -195,6 +196,14 @@ def print_stock_report(
         if val is not None and periods != nominal:
             label = f"{label} ({periods}Y)"
         return Text(label, style=style)
+
+    growth_table.add_row(
+        "Revenue",
+        Text(_fmt(basic.revenue_qoq_pct, "%"), style=_growth_style(basic.revenue_qoq_pct)),
+        _fmt_yoy_fallback(basic.revenue_yoy_3y_pct, basic.revenue_yoy_3y_periods, 3),
+        _fmt_yoy_fallback(basic.revenue_yoy_pct, basic.revenue_yoy_periods, 5),
+        _fmt_inr(basic.revenue_latest),
+    )
 
     growth_table.add_row(
         "PAT (Net Income)",
@@ -210,11 +219,28 @@ def print_stock_report(
         _fmt_yoy_fallback(basic.eps_yoy_pct, basic.eps_yoy_periods, 5),
         _fmt(basic.eps_latest, " ₹"),
     )
+    if not is_fin and basic.ebitda_margin_latest_pct is not None:
+        def _pp_style(val: Optional[float]) -> str:
+            if val is None:
+                return "dim"
+            return "green" if val >= 0.3 else "red" if val < 0 else "dim"
+        def _margin_fmt(val: Optional[float]) -> str:
+            return _fmt(val, "%") if val is not None else "-"
+        def _pp_fmt(val: Optional[float]) -> str:
+            return f"{val:+.2f}pp" if val is not None else "-"
+        growth_table.add_row(
+            "EBITDA Margin",
+            Text(_pp_fmt(basic.ebitda_margin_qoq_pp), style=_pp_style(basic.ebitda_margin_qoq_pp)),
+            Text(_pp_fmt(basic.ebitda_margin_3y_pp), style=_pp_style(basic.ebitda_margin_3y_pp)),
+            Text(_pp_fmt(basic.ebitda_margin_5y_pp), style=_pp_style(basic.ebitda_margin_5y_pp)),
+            _fmt(basic.ebitda_margin_latest_pct, "%"),
+        )
     console.print(growth_table)
 
     # ---- Section 2: Profitability ----
     prof_pts = bbd.get("profitability", 0) + bbd.get("cash_quality", 0) + abd.get("profitability", 0)
-    prof_table = Table(title=f"Profitability & Cash Quality{_pts(prof_pts)}", box=box.SIMPLE_HEAVY)
+    _prof_reasons = bbd.get("profitability_reasons", []) + bbd.get("cash_quality_reasons", []) + abd.get("profitability_reasons", [])
+    prof_table = Table(title=f"Profitability & Cash Quality{_pts(prof_pts)}{_subtitle(_prof_reasons)}", box=box.SIMPLE_HEAVY)
     prof_table.add_column("Metric", style="dim")
     prof_table.add_column("Value", justify="right")
     prof_table.add_column("Signal", justify="center")
@@ -222,8 +248,6 @@ def print_stock_report(
     def _signal(flag_val: bool) -> Text:
         return Text("✓", style="green") if flag_val else Text("✗", style="red")
 
-    sector = price_info.get("sector") if price_info else None
-    is_fin = _is_financial(sector)
     industry = price_info.get("industry") if price_info else None
     is_lease = _is_lease_heavy(sector, industry) or _is_lease_heavy_by_data(
         basic.si_ocf_ebitda_ratio, basic.si_ocf_pat_ratio
@@ -231,7 +255,8 @@ def print_stock_report(
 
     _lumpy = sector and any(k in sector.lower() for k in ("real estate", "construction", "infrastructure", "capital goods", "engineering"))
     _opm_label = "EBITDA Margin  [dim](annual)[/dim]" if _lumpy else "EBITDA Margin"
-    prof_table.add_row(_opm_label, _fmt(basic.ebitda_margin_latest_pct, "%"), basic.ebitda_margin_trend or "-")
+    _opm_qoq = f"  [dim]QoQ {basic.ebitda_margin_qoq_pp:+.2f}pp[/dim]" if basic.ebitda_margin_qoq_pp is not None else ""
+    prof_table.add_row(_opm_label, f"{_fmt(basic.ebitda_margin_latest_pct, '%')}{_opm_qoq}", basic.ebitda_margin_trend or "-")
 
     # OCF/EBITDA — shown for all non-financial companies (extra row for lease-heavy, primary for others)
     if basic.si_ocf_ebitda_ratio is not None and not is_fin:
@@ -301,7 +326,7 @@ def print_stock_report(
     # ---- Section 2a: Asset Quality (financial sector only) ----
     if is_fin and (basic.gross_npa_pct is not None or basic.net_npa_pct is not None):
         npa_pts = basic.score_breakdown.get("asset_quality", 0)
-        npa_table = Table(title=f"Asset Quality{_pts(npa_pts)}", box=box.SIMPLE_HEAVY)
+        npa_table = Table(title=f"Asset Quality{_pts(npa_pts)}{_subtitle(bbd.get('asset_quality_reasons', []))}", box=box.SIMPLE_HEAVY)
         npa_table.add_column("Metric", style="dim", min_width=14)
         npa_table.add_column("Latest", justify="right")
         npa_table.add_column("1Y Change", justify="right")
@@ -400,7 +425,7 @@ def print_stock_report(
         console.print(cf_table)
 
     # ---- Section 3: Debt Health ----
-    debt_table = Table(title=f"Debt Health{_pts(abd.get('debt', 0))}", box=box.SIMPLE_HEAVY)
+    debt_table = Table(title=f"Debt Health{_pts(abd.get('debt', 0))}{_subtitle(abd.get('debt_reasons', []))}", box=box.SIMPLE_HEAVY)
     debt_table.add_column("Metric", style="dim")
     debt_table.add_column("Value", justify="right")
     debt_table.add_column("Threshold", justify="right", style="dim")
@@ -636,7 +661,7 @@ def print_stock_report(
         console.print(re_table)
 
     # ---- Section 4: Shareholding ----
-    hold_table = Table(title=f"Shareholding Pattern{_pts(abd.get('shareholding', 0))}", box=box.SIMPLE_HEAVY)
+    hold_table = Table(title=f"Shareholding Pattern{_pts(abd.get('shareholding', 0))}{_subtitle(abd.get('shareholding_reasons', []))}", box=box.SIMPLE_HEAVY)
     hold_table.add_column("Holder", style="dim")
     hold_table.add_column("Current %", justify="right")
     hold_table.add_column("QoQ Change", justify="right")
@@ -666,7 +691,7 @@ def print_stock_report(
         ("10 Year", advanced.pe_mean_10y,          advanced.pe_min_10y,        advanced.pe_max_10y),
     ]
     val_table = Table(
-        title=f"Valuation  [dim](P/E current: {_fmt(current_pe, 'x')})[/dim]{_pts(abd.get('valuation', 0))}",
+        title=f"Valuation  [dim](P/E current: {_fmt(current_pe, 'x')})[/dim]{_pts(abd.get('valuation', 0))}{_subtitle(abd.get('valuation_reasons', []))}",
         box=box.SIMPLE_HEAVY,
     )
     val_table.add_column("Period / Metric", style="dim", min_width=14)

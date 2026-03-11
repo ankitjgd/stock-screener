@@ -93,6 +93,8 @@ class BasicScreenResult:
     # Margin
     ebitda_margin_latest_pct: Optional[float] = None
     ebitda_margin_qoq_pp: Optional[float] = None    # QoQ change in EBITDA margin (pp)
+    ebitda_margin_3y_pp: Optional[float] = None     # 3Y change in EBITDA margin (pp, ~12Q)
+    ebitda_margin_5y_pp: Optional[float] = None     # 5Y change in EBITDA margin (pp, ~20Q)
     ebitda_margin_trend: Optional[str] = None  # improving | stable | deteriorating
     # Cash quality (yfinance quarterly — fallback)
     ocf_pat_ratio: Optional[float] = None
@@ -461,6 +463,10 @@ class BasicScreener:
             result.ebitda_margin_trend = _trend(opm_pct, window=8)
             if len(_opm_clean) >= 2:
                 result.ebitda_margin_qoq_pp = round(float(_opm_clean.iloc[-1]) - float(_opm_clean.iloc[-2]), 2)
+            if len(_opm_clean) >= 13:
+                result.ebitda_margin_3y_pp = round(float(_opm_clean.iloc[-1]) - float(_opm_clean.iloc[-13]), 2)
+            if len(_opm_clean) >= 21:
+                result.ebitda_margin_5y_pp = round(float(_opm_clean.iloc[-1]) - float(_opm_clean.iloc[-21]), 2)
 
         # ── Annual cash flows — screener.in ───────────────────────────────
         if si_cashflow_df is not None and not si_cashflow_df.empty:

@@ -43,6 +43,12 @@ def _screen_symbol(
     si_cashflow = si_data.get("cash_flow")
     si_balance = si_data.get("balance_sheet")
 
+    # Patch stub annual year (e.g. 'Mar 2025 9m') → reconstructed full year
+    # before both screeners receive the data so YoY comparisons are like-for-like.
+    from screener.analysis.basic_screen import _patch_stub_annual
+    if si_annual is not None:
+        si_annual = _patch_stub_annual(si_annual, si_quarterly)
+
     sector = price_info.get("sector") if price_info else None
     industry = price_info.get("industry") if price_info else None
     basic = basic_screener.screen(
