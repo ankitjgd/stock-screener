@@ -34,9 +34,10 @@ shareholding:
   promoter_pledge_red_pct: 25.0   # Red flag promoter pledge %
   promoter_pledge_increase_alert: 5.0  # Alert if pledge increases by this % QoQ
   promoter_holding_decrease_alert: 2.0 # Alert if promoter selling by this % QoQ
-  fii_increase_min_pct: 1.0       # Bullish signal: FII bought this much QoQ
+  fii_increase_min_pct: 1.0       # Bullish signal: FII net bought this much over 6Q (pp)
   public_holding_max_pct: 30.0    # Public holding above this = weak institutional conviction (-5 pts)
-  dii_increase_min_pct: 1.0       # Signal threshold for DII buying QoQ
+  public_6q_increase_alert: 2.0   # Public 6Q increase above this = retail accumulating while institutions exit (-3 pts)
+  dii_increase_min_pct: 1.0       # Signal threshold for DII buying over 6Q (pp)
 
 working_capital:
   debtor_days_max: 90             # Maximum debtor days

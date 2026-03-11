@@ -782,37 +782,41 @@ class AdvancedScreener:
             if pts != 0:
                 _sd.append([f"Promo 6Q {result.promoter_holding_6q_delta:+.2f}pp", pts])
 
-        # FII activity (default max ±6)
+        # FII activity — use 6Q delta for trend signal (default max ±6)
         fii_sf = _sf("fii_activity")
-        if fii_sf and result.fii_holding_delta is not None:
-            raw = (6 if result.fii_holding_delta >= cfg_s["fii_increase_min_pct"] * 2 else
-                   3 if result.fii_holding_delta >= cfg_s["fii_increase_min_pct"] else
-                  -6 if result.fii_holding_delta <= -cfg_s["fii_increase_min_pct"] * 2 else
-                  -3 if result.fii_holding_delta <= -cfg_s["fii_increase_min_pct"] else 0)
+        _fii_6q = result.fii_holding_6q_delta
+        if fii_sf and _fii_6q is not None:
+            _thr = cfg_s["fii_increase_min_pct"]
+            raw = (6 if _fii_6q >= _thr * 2 else
+                   3 if _fii_6q >= _thr else
+                  -6 if _fii_6q <= -_thr * 2 else
+                  -3 if _fii_6q <= -_thr else 0)
             pts = round(raw * fii_sf)
             score += pts
             bd["shareholding"] += pts
             if pts != 0:
-                _sd.append([f"FII {result.fii_holding_delta:+.2f}pp", pts])
-        # DII (default max ±3)
+                _sd.append([f"FII 6Q {_fii_6q:+.1f}pp", pts])
+        # DII — use 6Q delta (default max ±3)
         dii_sf = _sf("dii_activity")
-        if dii_sf and result.dii_holding_delta is not None:
-            raw = (3 if result.dii_holding_delta >= cfg_s["fii_increase_min_pct"] else
-                  -3 if result.dii_holding_delta <= -cfg_s["fii_increase_min_pct"] else 0)
+        _dii_6q = result.dii_holding_6q_delta
+        if dii_sf and _dii_6q is not None:
+            _thr = cfg_s["fii_increase_min_pct"]
+            raw = (3 if _dii_6q >= _thr else
+                  -3 if _dii_6q <= -_thr else 0)
             pts = round(raw * dii_sf)
             score += pts
             bd["shareholding"] += pts
             if pts != 0:
-                _sd.append([f"DII {result.dii_holding_delta:+.2f}pp", pts])
+                _sd.append([f"DII 6Q {_dii_6q:+.1f}pp", pts])
 
-        # Both FII + DII selling simultaneously → -10 (scaled by fii weight)
-        fii_down = result.fii_holding_delta is not None and result.fii_holding_delta <= -cfg_s["fii_increase_min_pct"]
-        dii_down = result.dii_holding_delta is not None and result.dii_holding_delta <= -cfg_s.get("dii_increase_min_pct", 1.0)
+        # Both FII + DII selling over 6Q simultaneously → -10
+        fii_down = _fii_6q is not None and _fii_6q <= -cfg_s["fii_increase_min_pct"]
+        dii_down = _dii_6q is not None and _dii_6q <= -cfg_s.get("dii_increase_min_pct", 1.0)
         if fii_down and dii_down:
             pts = round(-10 * fii_sf)
             score += pts
             bd["shareholding"] += pts
-            _sd.append(["FII+DII both selling", pts])
+            _sd.append(["FII+DII both selling 6Q", pts])
 
         # High public holding (> 30%) → -5
         pub_max = cfg_s.get("public_holding_max_pct", 30.0)
@@ -821,6 +825,14 @@ class AdvancedScreener:
             score += pts
             bd["shareholding"] += pts
             _sd.append([f"Public {result.public_holding_pct:.1f}% > {pub_max:.0f}%", pts])
+
+        # Public 6Q increase (retail accumulating while institutions exit) → -3
+        _pub_6q = result.public_holding_6q_delta
+        if fii_sf and _pub_6q is not None and _pub_6q > cfg_s.get("public_6q_increase_alert", 2.0):
+            pts = round(-3 * fii_sf)
+            score += pts
+            bd["shareholding"] += pts
+            _sd.append([f"Public 6Q {_pub_6q:+.1f}pp", pts])
 
         # PEG ratio (default max ±8)
         peg_sf = _sf("peg_ratio")
