@@ -92,6 +92,7 @@ class BasicScreenResult:
     pat_cagr_3y: Optional[float] = None        # 3Y PAT CAGR (endpoint-to-endpoint, used for PEG)
     # Margin
     ebitda_margin_latest_pct: Optional[float] = None
+    ebitda_margin_qoq_pp: Optional[float] = None    # QoQ change in EBITDA margin (pp)
     ebitda_margin_trend: Optional[str] = None  # improving | stable | deteriorating
     # Cash quality (yfinance quarterly — fallback)
     ocf_pat_ratio: Optional[float] = None
@@ -455,8 +456,11 @@ class BasicScreener:
         opm_skip_ttm = _use_annual_opm
         opm_pct = _si_row_series(opm_src, ["OPM %", "OPM%", "OPM"], skip_ttm=opm_skip_ttm)
         if opm_pct is not None and not opm_pct.dropna().empty:
-            result.ebitda_margin_latest_pct = round(float(opm_pct.dropna().iloc[-1]), 2)
+            _opm_clean = opm_pct.dropna()
+            result.ebitda_margin_latest_pct = round(float(_opm_clean.iloc[-1]), 2)
             result.ebitda_margin_trend = _trend(opm_pct, window=8)
+            if len(_opm_clean) >= 2:
+                result.ebitda_margin_qoq_pp = round(float(_opm_clean.iloc[-1]) - float(_opm_clean.iloc[-2]), 2)
 
         # ── Annual cash flows — screener.in ───────────────────────────────
         if si_cashflow_df is not None and not si_cashflow_df.empty:
@@ -718,6 +722,15 @@ class BasicScreener:
             score += pts
             bd["profitability"] += pts
             _pd.append([f"EBITDA {result.ebitda_margin_latest_pct:.1f}%", pts])
+        if em_sf and not financial and result.ebitda_margin_qoq_pp is not None:
+            _qoq_thr = cfg_p.get("ebitda_margin_qoq_expand_pp", 1.0)
+            raw = (4 if result.ebitda_margin_qoq_pp >= _qoq_thr else
+                   2 if result.ebitda_margin_qoq_pp >= 0 else
+                  -2 if result.ebitda_margin_qoq_pp >= -_qoq_thr else -4)
+            pts = round(raw * em_sf)
+            score += pts
+            bd["profitability"] += pts
+            _pd.append([f"EBITDA QoQ {result.ebitda_margin_qoq_pp:+.2f}pp", pts])
         if em_sf and not financial and result.ebitda_margin_trend == "improving":
             pts = round(5 * em_sf)
             score += pts

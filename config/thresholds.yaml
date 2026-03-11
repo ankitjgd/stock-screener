@@ -10,6 +10,7 @@ growth:
 
 profitability:
   ebitda_margin_min_pct: 10.0     # Minimum EBITDA margin %
+  ebitda_margin_qoq_expand_pp: 1.0   # QoQ margin expansion (pp) to score as expanding
   roe_min_pct: 15.0               # Minimum Return on Equity %
   roce_min_pct: 12.0              # Minimum Return on Capital Employed %
   ocf_pat_ratio_min: 0.75         # Minimum OCF/PAT ratio (cash quality check)
